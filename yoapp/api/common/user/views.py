@@ -112,29 +112,41 @@ def login_view(request):
 
 
 
+
+import httplib2
+from googleapiclient.discovery import build
+from oauth2client.client import AccessTokenCredentials
 @api_view(['POST'])
 @permission_classes(())
-def social_reg_login(request):
-    # обработчик регистрации
-    if request.user.is_authenticated == True:
-        error = {"detail": "You must have to log out first"}
-        return Response(custom_api_response(errors=error), status=status.HTTP_400_BAD_REQUEST)
+def google_oauth(request):
+    if request.user.is_authenticated:
+        return Response({"detail": "You must have to log out first"})
 
-    email=request.POST.get('email')
-    if UserModel.objects.get(email=email):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            token = create_token(TokenModel, user, serializer)
-            # token = Token.objects.get(user=user)
-            django_login(request, user)
-            content = {'token': token.key, 'email': user.email, 'id': user.id}
-            return Response(custom_api_response(serializer, content), status=status.HTTP_200_OK)
-    else:
+    access_token = request.data['access_token']
+    credentials = AccessTokenCredentials(access_token,'my-user-agent/1.0')
+    http = httplib2.Http()
+    http = credentials.authorize(http)
+    service = build('plus', 'v1', http=http)
+    result=service.people().get(userId='me').execute()
 
+    email=result['emails'][0]['value']
+    gender=result['gender']
+    first_name=result['name']['givenName']
+    last_name=result['name']['familyName']
+    photo=result['image']['url']
 
-  # return Response(custom_api_response(serializer), status=status.HTTP_201_CREATED)
-   # else:
-    #    return Response(custom_api_response(serializer), status=status.HTTP_400_BAD_REQUEST)
-   # return Response('ok')
-       pass
+    def create_login_token(user):
+        serializer = LoginSerializer()
+        token = create_token(TokenModel, user, serializer)
+        return token
+
+    try:
+        user=UserModel.objects.get(email=email)
+    except UserModel.DoesNotExist:
+        user=UserModel(email=email,last_name=last_name,first_name=first_name)
+        user.set_password('password')
+        user.save()
+
+    token=create_login_token(user)
+
+    return Response({'token':token.key})

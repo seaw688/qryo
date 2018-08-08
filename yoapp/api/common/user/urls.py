@@ -1,7 +1,9 @@
 from django.conf.urls import re_path, include, url
 from rest_framework import routers
-from .views import UserViewSet, Logout
+from .views import UserViewSet, Logout ,google_oauth
 from . import views as api_view
+
+
 
 router = routers.DefaultRouter()
 router.include_format_suffixes = False
@@ -14,7 +16,6 @@ urlpatterns += [
     url(r'^login/$', api_view.login_view, name='user_login'),
     url(r'^logout/', Logout.as_view(), name='user_logout'),
     url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
-    url(r'^social/', include('rest_social_auth.urls_token')),
-
+    url(r'^google/$', google_oauth, name='google_login'),
 
 ]
